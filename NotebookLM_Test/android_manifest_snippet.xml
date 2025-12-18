@@ -1,0 +1,8 @@
+<!-- Add this inside the <activity> tag in android/app/src/main/AndroidManifest.xml -->
+
+<intent-filter>
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data android:scheme="notebooklmbooth" android:host="return" />
+</intent-filter>

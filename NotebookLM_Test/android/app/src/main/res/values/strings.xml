@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">NotebookLM Booth</string>
+    <string name="title_activity_main">NotebookLM Booth</string>
+    <string name="package_name">com.example.notebooklmbooth</string>
+    <string name="custom_url_scheme">com.example.notebooklmbooth</string>
+</resources>
