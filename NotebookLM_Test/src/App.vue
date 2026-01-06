@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
+import { AppLauncher } from '@capacitor/app-launcher';
 import { FlowStep, currentStep, setStep, resetFlow } from './state/flow';
 import { generateSessionId } from './utils/session';
 import OperatorPanel from './components/OperatorPanel.vue';
@@ -43,13 +44,41 @@ const startFlow = () => {
 
 const openNotebookLM = async () => {
   errorMessage.value = '';
+  
+  // 1. ATTEMPT TO OPEN NATIVE APP
+  // If you have a specific app installed, you need its "URL Scheme" (e.g. "notebooklm://" or "com.google.android.apps.notebooklm://").
+  // REPLACE 'notebooklm://' below with the actual scheme of your app.
+  const APP_SCHEME = 'notebooklm://'; 
+
   try {
-    await Browser.open({ url: NOTEBOOKLM_URL });
-    // Advance flow to wait state after opening
+    const { value: canOpen } = await AppLauncher.canOpenUrl({ url: APP_SCHEME });
+    if (canOpen) {
+      await AppLauncher.openUrl({ url: APP_SCHEME });
+      setStep(FlowStep.WAIT_RETURN);
+      return;
+    }
+  } catch (e) {
+    console.log('App scheme check failed or not supported', e);
+  }
+
+  // 2. FALLBACK TO WEB URL
+  // If the app isn't found via scheme, we open the HTTPS URL.
+  // Android Note: If the user has assigned the NotebookLM app to handle 'notebooklm.google.com' links, 
+  // this will ALSO open the app automatically.
+  try {
+    await AppLauncher.openUrl({ url: NOTEBOOKLM_URL });
     setStep(FlowStep.WAIT_RETURN);
   } catch (e: any) {
-    console.error('Failed to open browser', e);
-    errorMessage.value = 'Could not open NotebookLM. Please try again.';
+    console.warn('AppLauncher https launch failed, falling back to Browser plugin', e);
+    
+    // 3. LAST RESORT: IN-APP BROWSER
+    try {
+      await Browser.open({ url: NOTEBOOKLM_URL });
+      setStep(FlowStep.WAIT_RETURN);
+    } catch (browserError: any) {
+      console.error('Failed to open browser', browserError);
+      errorMessage.value = 'Could not open NotebookLM. Please try again.';
+    }
   }
 };
 
