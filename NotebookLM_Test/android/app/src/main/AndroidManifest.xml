@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- REQUIRED for Android 11+ to see other apps -->
+    <queries>
+        <!-- The NotebookLM app package -->
+        <package android:name="com.google.android.apps.labs.language.tailwind" />
+        <!-- Common apps for testing -->
+        <package android:name="com.android.chrome" />
+        <package android:name="com.google.android.youtube" />
+        <package android:name="com.google.android.gm" />
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
