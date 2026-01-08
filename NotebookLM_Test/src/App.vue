@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { App as CapacitorApp } from '@capacitor/app';
-import { AppLauncher } from '@capacitor/app-launcher';
 import { Capacitor } from '@capacitor/core';
-import NativeLauncher from './plugins/NativeLauncher';
 import { FlowStep, currentStep, setStep, resetFlow } from './state/flow';
 import { generateSessionId } from './utils/session';
 import OperatorPanel from './components/OperatorPanel.vue';
@@ -11,10 +9,6 @@ import OperatorPanel from './components/OperatorPanel.vue';
 // --------------------
 // Constants
 // --------------------
-// NotebookLM package name
-// NOTE: Must also be added to AndroidManifest.xml <queries>
-const NOTEBOOKLM_PACKAGE = 'com.google.android.apps.labs.language.tailwind'; 
-// TEST WITH: com.android.chrome or com.google.android.youtube (if added to queries)
 
 // Fallback App Link (may open browser if NotebookLM doesn't claim links)
 const NOTEBOOKLM_URL = 'https://notebooklm.google.com/';
@@ -66,31 +60,77 @@ const startFlow = () => {
 const openNotebookLM = async () => {
   errorMessage.value = '';
 
-  // This launcher approach is Android-only
-  if (Capacitor.getPlatform() !== 'android') {
-    errorMessage.value = 'NotebookLM native launching is only supported on Android for this booth.';
-    return;
-  }
+  const platform = Capacitor.getPlatform();
 
-  // 1. Native Plugin Launch (Most reliable "Tap Icon" simulation)
-  try {
-    await NativeLauncher.launchApp({ packageName: NOTEBOOKLM_PACKAGE });
+  if (platform === 'web' || platform === 'ios' || platform === 'android') {
+    // Use Cordova InAppBrowser to open with hidden URL bar
+    // location=no hides the address bar
+    // toolbar=no hides the toolbar (if possible on specific OS versions)
+    // fullscreen=yes attempts to enter fullscreen
+    const ref = (window as any).cordova?.InAppBrowser?.open(
+      NOTEBOOKLM_URL, 
+      '_blank', 
+      'location=no,toolbar=no,zoom=no,presentationstyle=fullscreen'
+    );
+     // If InAppBrowser is not available (e.g. strict web dev mode without simulation), fallback:
+    if (!ref) {
+       window.open(NOTEBOOKLM_URL, '_blank');
+    } else {
+       // --- Key Feature: Inject CSS to hide elements ---
+       // We listen for the 'loadstop' event, which fires when the page finishes loading.
+       ref.addEventListener('loadstop', () => {
+          console.log("NotebookLM loaded - Attempting to inject CSS...");
+
+          // 1. DEBUG: Red Border. If you see this, injection IS working.
+          // 2. We use 'executeScript' creating a <style> tag which is often more reliable than insertCSS.
+          const cssToInject = `
+            /* Settings */
+            [role="button"][aria-label*="Settings" i],
+            button[aria-label*="Settings" i]{
+            display:none !important;
+            pointer-events:none !important;
+            opacity:0 !important;
+            }
+
+            /* Google apps launcher */
+            [role="button"][aria-label*="Google apps" i]{
+            display:none !important;
+            pointer-events:none !important;
+            opacity:0 !important;
+            }
+
+            /* Account avatar */
+            [role="button"][aria-label^="Google Account:"],
+            [role="button"][aria-label*="Google Account" i],
+            a[href*="accounts.google.com"],
+            /* Extra robust selectors based on your screenshot structure */
+            #gb .gb_Cd,
+            .gb_Cd,
+            .gb_A, 
+            header img {
+            display:none !important;
+            pointer-events:none !important;
+            opacity:0 !important;
+            }
+          `;
+
+          // Inject via JS Script -> Style Tag (More Robust)
+          ref.executeScript({ 
+            code: `
+              (function() {
+                var style = document.createElement('style');
+                style.textContent = \`${cssToInject}\`;
+                document.head.appendChild(style);
+                console.log("BOOTH: Styles Injected");
+              })();
+            `
+          });
+       });
+    }
+
     setStep(FlowStep.WAIT_RETURN);
     return;
-  } catch (e) {
-    console.warn('NativeLauncher failed', e);
   }
-
-  // 2. Fallback: App Link (Intent Filter)
-  try {
-    await AppLauncher.openUrl({ url: NOTEBOOKLM_URL });
-    setStep(FlowStep.WAIT_RETURN);
-    return; 
-  } catch (e) {
-    console.error('Failed to open NotebookLM via app link', e);
-  }
-
-  errorMessage.value = `Could not launch app (${NOTEBOOKLM_PACKAGE}). Verify it is installed.`;
 };
 
 const handleReturn = () => {
