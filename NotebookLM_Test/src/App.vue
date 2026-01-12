@@ -118,10 +118,28 @@ const openNotebookLM = async () => {
           ref.executeScript({ 
             code: `
               (function() {
+                // 1. Inject Styles
                 var style = document.createElement('style');
                 style.textContent = \`${cssToInject}\`;
                 document.head.appendChild(style);
                 console.log("BOOTH: Styles Injected");
+
+                // 2. Auto-Click "Interactive mode"
+                var attempts = 0;
+                var maxAttempts = 10; // Try for ~60 seconds
+                var intervalId = setInterval(function() {
+                  attempts++;
+                  var btn = document.querySelector('button[aria-label="Interactive mode"]');
+                  
+                  if (btn) {
+                    console.log("BOOTH: Found 'Interactive mode' button. Clicking...");
+                    btn.click();
+                    clearInterval(intervalId);
+                  } else if (attempts >= maxAttempts) {
+                    console.log("BOOTH: 'Interactive mode' button not found after timeout.");
+                    clearInterval(intervalId);
+                  }
+                }, 1000);
               })();
             `
           });
