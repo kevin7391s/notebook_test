@@ -23,6 +23,7 @@ const titleTapCount = ref(0);
 const showOperator = ref(false);
 const errorMessage = ref('');
 let resetTimer: any = null;
+let inAppBrowserRef: any = null;
 
 // --------------------
 // Computed
@@ -67,11 +68,20 @@ const openNotebookLM = async () => {
     // location=no hides the address bar
     // toolbar=no hides the toolbar (if possible on specific OS versions)
     // fullscreen=yes attempts to enter fullscreen
-    const ref = (window as any).cordova?.InAppBrowser?.open(
+    inAppBrowserRef = (window as any).cordova?.InAppBrowser?.open(
       NOTEBOOKLM_URL, 
       '_blank', 
-      'location=no,toolbar=no,zoom=no,presentationstyle=fullscreen'
+      'location=no,toolbar=no,zoom=no,presentationstyle=fullscreen,clearcache=yes,clearsessioncache=yes'
     );
+    const ref = inAppBrowserRef;
+
+    // Listen for custom exit signal (intercept dummy URL to avoid unknown scheme error)
+    ref.addEventListener('loadstart', (event: any) => {
+        if (event.url && event.url.includes('exit-booth-signal')) {
+            handleReturn();
+        }
+    });
+
      // If InAppBrowser is not available (e.g. strict web dev mode without simulation), fallback:
     if (!ref) {
        window.open(NOTEBOOKLM_URL, '_blank');
@@ -127,15 +137,52 @@ const openNotebookLM = async () => {
                 // 2. Auto-Click "Interactive mode"
                 var attempts = 0;
                 var maxAttempts = 10; // Try for ~60 seconds
+                
+                function maintainBoothState() {
+                    // Hijack Restart Audio Button
+                    var restartBtn = document.querySelector('button[aria-label="Restart audio"]');
+                    if (restartBtn && !restartBtn.hasAttribute('data-booth-hijack')) {
+                         console.log("BOOTH: Found Restart audio button. Adding hijack listener.");
+                         restartBtn.setAttribute('data-booth-hijack', 'true');
+                         restartBtn.addEventListener('click', function(e) {
+                             console.log("BOOTH: User clicked Restart -> Exiting");
+                             // Navigate to a safe HTTPS URL that we intercept
+                             window.location.href = 'https://notebooklm.google.com/exit-booth-signal';
+                         }, true);
+                    }
+                }
+
+                // CHECK STATE: If we find our session flag, restore active state immediately
+                if (sessionStorage.getItem('booth_interactive_active') === 'true') {
+                     console.log("BOOTH: Interactive state active (from session storage). Restoring maintenance.");
+                     maintainBoothState();
+                     setInterval(maintainBoothState, 1000);
+                }
+
+                // Auto-Clicker Logic
+                var attempts = 0;
+                var maxAttempts = 10; // Try for ~60 seconds
+
                 var intervalId = setInterval(function() {
                   attempts++;
                   var btn = document.querySelector('button[aria-label="Interactive mode"]');
                   
                   if (btn) {
                     console.log("BOOTH: Found 'Interactive mode' button. Clicking...");
+                    
+                    // SAVE STATE: Mark that we have clicked it
+                    sessionStorage.setItem('booth_interactive_active', 'true');
+                    
                     btn.click();
                     clearInterval(intervalId);
+
+                    // 3. Inject and Maintain Booth State (Exit Btn + Hijack)
+                    maintainBoothState();
+                    setInterval(maintainBoothState, 1000);
+                    
                   } else if (attempts >= maxAttempts) {
+                    // If we time out, we might ALREADY be in the view (if session storage didn't work?)
+                    // But if session storage works, the check at the top handles it.
                     console.log("BOOTH: 'Interactive mode' button not found after timeout.");
                     clearInterval(intervalId);
                   }
@@ -153,6 +200,11 @@ const openNotebookLM = async () => {
 
 const handleReturn = () => {
   setStep(FlowStep.THANK_YOU);
+
+  if (inAppBrowserRef) {
+    inAppBrowserRef.close();
+    inAppBrowserRef = null;
+  }
 
   if (resetTimer) clearTimeout(resetTimer);
   resetTimer = setTimeout(() => {
