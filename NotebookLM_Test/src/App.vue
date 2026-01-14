@@ -130,7 +130,7 @@ const openNotebookLM = async () => {
               (function() {
                 // 1. Inject Styles
                 var style = document.createElement('style');
-                style.textContent = \`${cssToInject}\`;
+                style.textContent = ${JSON.stringify(cssToInject)};
                 document.head.appendChild(style);
                 console.log("BOOTH: Styles Injected");
 
@@ -141,14 +141,43 @@ const openNotebookLM = async () => {
                 function maintainBoothState() {
                     // Hijack Restart Audio Button
                     var restartBtn = document.querySelector('button[aria-label="Restart audio"]');
-                    if (restartBtn && !restartBtn.hasAttribute('data-booth-hijack')) {
-                         console.log("BOOTH: Found Restart audio button. Adding hijack listener.");
-                         restartBtn.setAttribute('data-booth-hijack', 'true');
-                         restartBtn.addEventListener('click', function(e) {
-                             console.log("BOOTH: User clicked Restart -> Exiting");
-                             // Navigate to a safe HTTPS URL that we intercept
-                             window.location.href = 'https://notebooklm.google.com/exit-booth-signal';
-                         }, true);
+                    
+                    if (restartBtn) {
+                         // 1. Behavior Hijack
+                         if (!restartBtn.hasAttribute('data-booth-hijack')) {
+                             console.log("BOOTH: Found Restart audio button. Adding hijack listener.");
+                             restartBtn.setAttribute('data-booth-hijack', 'true');
+                             restartBtn.addEventListener('click', function(e) {
+                                 console.log("BOOTH: User clicked Restart -> Exiting");
+                                 // Navigate to a safe HTTPS URL that we intercept
+                                 window.location.href = 'https://notebooklm.google.com/exit-booth-signal';
+                             }, true);
+                         }
+                         
+                         // 2. Visual Hijack (Change UI to "END")
+                         // We continuously enforce this in case the SPA re-renders the button content
+                         if (restartBtn.textContent !== 'END') {
+                             restartBtn.textContent = 'END';
+                             // Apply forceful styling to ensure it looks like an exit button
+                             // We use !important to override Google's Material Design styles
+                             restartBtn.setAttribute('style', \`
+                               background-color: #ff4444 !important;
+                               color: white !important;
+                               border-radius: 24px !important;
+                               padding: 0 20px !important;
+                               font-family: sans-serif !important;
+                               font-weight: bold !important;
+                               font-size: 14px !important;
+                               text-transform: uppercase !important;
+                               min-width: 80px !important;
+                               height: 48px !important;
+                               display: flex !important;
+                               align-items: center !important;
+                               justify-content: center !important;
+                               box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+                               z-index: 9999 !important;
+                             \`);
+                         }
                     }
                 }
 
