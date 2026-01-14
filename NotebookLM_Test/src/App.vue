@@ -71,7 +71,7 @@ const openNotebookLM = async () => {
     inAppBrowserRef = (window as any).cordova?.InAppBrowser?.open(
       NOTEBOOKLM_URL, 
       '_blank', 
-      'location=no,toolbar=no,zoom=no,presentationstyle=fullscreen,clearcache=yes,clearsessioncache=yes'
+      'location=no,toolbar=no,zoom=no,presentationstyle=fullscreen,clearcache=no,clearsessioncache=no'
     );
     const ref = inAppBrowserRef;
 
